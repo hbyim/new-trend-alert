@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>코인 추세 알림</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1b1f24; --muted: #667085;
+    --border: #e4e7ec; --ok: #12b76a; --ok-bg: #ecfdf3; --no: #f04438; --no-bg: #fef3f2;
+    --accent: #f0b90b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --card: #181b21; --text: #e6e8eb; --muted: #98a2b3;
+      --border: #2a2f37; --ok-bg: #0b2a1b; --no-bg: #2d1414;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+  .status { border-radius: 14px; padding: 18px 20px; margin-bottom: 16px; border: 1px solid var(--border);
+    background: var(--card); display: flex; align-items: center; gap: 14px; }
+  .status .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--muted); flex: none; }
+  .status.ok { background: var(--ok-bg); border-color: var(--ok); }
+  .status.ok .dot { background: var(--ok); }
+  .status.no { background: var(--no-bg); border-color: var(--no); }
+  .status.no .dot { background: var(--no); }
+  .status b { font-size: 18px; display: block; }
+  .status span { color: var(--muted); font-size: 13px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
+  .card h2 { font-size: 15px; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: center; }
+  .pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+  .pill.ok { background: var(--ok); color: #fff; } .pill.no { background: var(--no); color: #fff; }
+  .row { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; }
+  .row .k { color: var(--muted); } .row .v { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+  button, select { font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #1b1f24; font-weight: 600; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .log { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+  .log li { padding: 6px 0; border-top: 1px solid var(--border); }
+  .log li:first-child { border-top: 0; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+  .modal-bg.show { display: flex; }
+  .modal { background: var(--card); color: var(--text); border-radius: 16px; padding: 24px; max-width: 420px; width: 100%;
+    border-top: 6px solid var(--muted); box-shadow: 0 20px 50px rgba(0,0,0,.3); }
+  .modal.ok { border-top-color: var(--ok); } .modal.no { border-top-color: var(--no); }
+  .modal h3 { margin: 0 0 8px; font-size: 19px; }
+  .modal p { margin: 0 0 16px; font-size: 14px; line-height: 1.5; white-space: pre-line; }
+  .err { color: var(--no); font-size: 13px; min-height: 18px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>코인 추세 알림</h1>
+  <p class="sub">바이낸스 기준 · BTC가 120일 이동평균선 위 <b>그리고</b> ETH가 50일 이동평균선 위일 때 알림</p>
+
+  <div id="status" class="status"><div class="dot"></div><div><b id="statusText">불러오는 중…</b><span id="statusSub"></span></div></div>
+
+  <div class="grid">
+    <div class="card" id="btcCard">
+      <h2>BTC / USDT <span class="pill" id="btcPill">-</span></h2>
+      <div class="row"><span class="k">현재가</span><span class="v" id="btcPrice">-</span></div>
+      <div class="row"><span class="k">120일 이동평균</span><span class="v" id="btcMa">-</span></div>
+      <div class="row"><span class="k">이평선 대비</span><span class="v" id="btcDiff">-</span></div>
+    </div>
+    <div class="card" id="ethCard">
+      <h2>ETH / USDT <span class="pill" id="ethPill">-</span></h2>
+      <div class="row"><span class="k">현재가</span><span class="v" id="ethPrice">-</span></div>
+      <div class="row"><span class="k">50일 이동평균</span><span class="v" id="ethMa">-</span></div>
+      <div class="row"><span class="k">이평선 대비</span><span class="v" id="ethDiff">-</span></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="notifyBtn">브라우저 알림 허용</button>
+    <button id="refreshBtn">지금 확인</button>
+    <label class="muted">확인 주기
+      <select id="interval">
+        <option value="30">30초</option>
+        <option value="60" selected>1분</option>
+        <option value="300">5분</option>
+        <option value="900">15분</option>
+      </select>
+    </label>
+    <label class="muted"><input type="checkbox" id="sound" checked> 소리</label>
+  </div>
+  <div class="err" id="err"></div>
+  <p class="muted" id="updated"></p>
+
+  <div class="card">
+    <h2>알림 기록</h2>
+    <ul class="log" id="log"><li class="muted">아직 기록이 없습니다.</li></ul>
+  </div>
+
+  <p class="muted" style="margin-top:16px">
+    이동평균은 마감된 일봉 종가 기준(UTC 00:00 마감)이며, 현재가는 실시간 시세와 비교합니다.
+    이 페이지(탭)가 열려 있는 동안 주기적으로 확인하며, 조건이 충족되거나 벗어날 때 팝업과 브라우저 알림을 보냅니다.
+  </p>
+</main>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal" id="modal">
+    <h3 id="modalTitle"></h3>
+    <p id="modalBody"></p>
+    <button class="primary" id="modalClose">확인</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
